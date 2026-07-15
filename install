@@ -1,1 +1,4 @@
 bash <(curl -sSL https://stackstorm.com/packages/install.sh) --user=st2admin --password=Ch@ngeMe
+bash <(curl -sSL https://stackstorm.com/packages/install.sh) --user=st2admin --password=Ch@ngeMe
+
+sudo yum install -y policycoreutils-python-utils
