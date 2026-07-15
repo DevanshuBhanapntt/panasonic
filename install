@@ -69,3 +69,6 @@ user = stanley
 ssh_key_file = /home/stanley/.ssh/stanley_rsa
 sudo st2ctl start
 sudo st2ctl reload
+sudo yum install puppet-bolt
+sudo rpm -Uvh https://yum.puppet.com/puppet-tools-release-el-8.noarch.rpm
+sudo /usr/local/bin/bolt module install
