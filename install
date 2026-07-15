@@ -63,3 +63,9 @@ sudo chmod 0440 /etc/sudoers.d/st2
 
 # Make sure `Defaults requiretty` is disabled in `/etc/sudoers`
 sudo sed -i -r "s/^Defaults\s+\+?requiretty/# Defaults +requiretty/g" /etc/sudoers
+
+[system_user]
+user = stanley
+ssh_key_file = /home/stanley/.ssh/stanley_rsa
+sudo st2ctl start
+sudo st2ctl reload
