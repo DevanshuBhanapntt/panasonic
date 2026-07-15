@@ -2,3 +2,64 @@ bash <(curl -sSL https://stackstorm.com/packages/install.sh) --user=st2admin --p
 bash <(curl -sSL https://stackstorm.com/packages/install.sh) --user=st2admin --password=Ch@ngeMe
 
 sudo yum install -y policycoreutils-python-utils
+# Allow network access for nginx
+sudo setsebool -P httpd_can_network_connect 1
+
+# Allow RabbitMQ to use port '25672', otherwise it will fail to start
+sudo semanage port --list | grep -q 25672 || sudo semanage port -a -t amqp_port_t -p tcp 25672
+sudo yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+
+# Add key and repo for the latest stable MongoDB (7.0)
+tee <<EOF /etc/yum.repos.d/mongodb-org-7.0.repo
+[mongodb-org-7.0]
+name=MongoDB Repository
+baseurl=https://repo.mongodb.org/yum/redhat/8/mongodb-org/7.0/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://pgp.mongodb.com/server-7.0.asc
+EOF
+
+curl -sL https://packagecloud.io/install/repositories/rabbitmq/erlang/script.rpm.sh | sudo bash
+curl -sL https://packagecloud.io/install/repositories/rabbitmq/rabbitmq-server/script.rpm.sh | sudo bash
+sudo yum makecache -y --disablerepo='*' --enablerepo='rabbitmq_rabbitmq-server'
+
+sudo yum -y install crudini erlang-* rabbitmq-server redis mongodb-org
+
+sudo systemctl enable mongod rabbitmq-server redis
+sudo systemctl start mongod rabbitmq-server redis
+curl -s https://packagecloud.io/install/repositories/StackStorm/stable/script.rpm.sh | sudo bash
+sudo yum install -y st2
+DATASTORE_ENCRYPTION_KEYS_DIRECTORY="/etc/st2/keys"
+DATASTORE_ENCRYPTION_KEY_PATH="${DATASTORE_ENCRYPTION_KEYS_DIRECTORY}/datastore_key.json"
+
+sudo mkdir -p ${DATASTORE_ENCRYPTION_KEYS_DIRECTORY}
+sudo st2-generate-symmetric-crypto-key --key-path ${DATASTORE_ENCRYPTION_KEY_PATH}
+
+# Make sure only st2 user can read the file
+sudo chgrp st2 ${DATASTORE_ENCRYPTION_KEYS_DIRECTORY}
+sudo chmod o-r ${DATASTORE_ENCRYPTION_KEYS_DIRECTORY}
+sudo chgrp st2 ${DATASTORE_ENCRYPTION_KEY_PATH}
+sudo chmod o-r ${DATASTORE_ENCRYPTION_KEY_PATH}
+
+# set path to the key file in the config
+sudo crudini --set /etc/st2/st2.conf keyvalue encryption_key_path ${DATASTORE_ENCRYPTION_KEY_PATH}
+
+sudo st2ctl restart-component st2api
+# Create an SSH system user (default `stanley` user may already exist)
+sudo useradd stanley
+sudo mkdir -p /home/stanley/.ssh
+sudo chmod 0700 /home/stanley/.ssh
+
+# Generate ssh keys
+sudo ssh-keygen -f /home/stanley/.ssh/stanley_rsa -P ""
+
+# Authorize key-based access
+sudo sh -c 'cat /home/stanley/.ssh/stanley_rsa.pub >> /home/stanley/.ssh/authorized_keys'
+sudo chown -R stanley:stanley /home/stanley/.ssh
+
+# Enable passwordless sudo
+sudo sh -c 'echo "stanley    ALL=(ALL)       NOPASSWD: SETENV: ALL" >> /etc/sudoers.d/st2'
+sudo chmod 0440 /etc/sudoers.d/st2
+
+# Make sure `Defaults requiretty` is disabled in `/etc/sudoers`
+sudo sed -i -r "s/^Defaults\s+\+?requiretty/# Defaults +requiretty/g" /etc/sudoers
